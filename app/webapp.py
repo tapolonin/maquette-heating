@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
 
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, render_template
 
 import paho.mqtt.client as mqtt
 
@@ -159,156 +159,9 @@ def api_analysis():
         "samples_used": len(rows)
     })
 
-
 @app.get("/")
-def home():
-    return """
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <title>Maquette - Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto; }
-    pre { background: #f3f3f3; padding: 12px; border-radius: 8px; }
-    .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; min-width: 280px; flex: 1; }
-    input, select, button { padding: 6px; margin: 6px 0; }
-    canvas { background: #fff; }
-    .links a { margin-right: 12px; }
-  </style>
-</head>
-<body>
-  <h1>Maquette Dashboard (Local)</h1>
-
-  <div class="links">
-    <a href="/api/export.csv?n=1000">Download CSV (last 1000)</a>
-  </div>
-
-<div class="card" style="margin-top: 20px;">
-  <h2>Analysis (recent data)</h2>
-  <pre id="analysis">Loading...</pre>
-</div>
-
-  <div class="row">
-    <div class="card">
-      <h2>Latest measurement</h2>
-      <pre id="latest">Loading...</pre>
-    </div>
-
-    <div class="card">
-      <h2>Control</h2>
-      <label>Mode</label><br/>
-      <select id="mode">
-        <option value="auto">auto</option>
-        <option value="manual">manual</option>
-      </select><br/>
-
-      <label>Setpoint (°C)</label><br/>
-      <input id="setpoint" type="number" step="0.1" value="21.0"/><br/>
-
-      <label>Manual heater</label><br/>
-      <select id="heater_manual">
-        <option value="0">OFF</option>
-        <option value="1">ON</option>
-      </select><br/>
-
-      <button onclick="sendCommand()">Send command</button>
-      <pre id="cmdresp"></pre>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top: 20px;">
-    <h2>Temperature (last points)</h2>
-    <label>Number of points:
-      <input id="npoints" type="number" value="120" min="10" max="5000"/>
-    </label>
-    <button onclick="reloadChart()">Reload</button>
-    <canvas id="tempChart" height="120"></canvas>
-  </div>
-
-<script>
-let chart;
-
-async function refreshLatest() {
-  const r = await fetch('/api/latest');
-  const data = await r.json();
-  document.getElementById('latest').innerText = JSON.stringify(data, null, 2);
-}
-
-async function refreshAnalysis() {
-  const r = await fetch('/api/analysis?n=300');
-  const data = await r.json();
-  document.getElementById('analysis').innerText = JSON.stringify(data, null, 2);
-}
-
-async function sendCommand() {
-  const payload = {
-    mode: document.getElementById('mode').value,
-    setpoint: parseFloat(document.getElementById('setpoint').value),
-    heater_manual: parseInt(document.getElementById('heater_manual').value)
-  };
-
-  const r = await fetch('/api/command', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload)
-  });
-
-  const data = await r.json();
-  document.getElementById('cmdresp').innerText = JSON.stringify(data, null, 2);
-}
-
-async function loadRecent(n = 120) {
-  const r = await fetch('/api/recent?n=' + n);
-  return await r.json();
-}
-
-async function reloadChart() {
-  const n = parseInt(document.getElementById('npoints').value);
-  const rows = await loadRecent(n);
-
-  const labels = rows.map(r => r.timestamp);
-  const tin = rows.map(r => r.temp_in);
-  const tout = rows.map(r => r.temp_out);
-
-  const ctx = document.getElementById('tempChart');
-
-  if (chart) chart.destroy();
-
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        { label: 'Temp In (°C)', data: tin, tension: 0.2 },
-        { label: 'Temp Out (°C)', data: tout, tension: 0.2 }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: true } },
-      scales: { x: { ticks: { maxTicksLimit: 10 } } }
-    }
-  });
-}
-
-// start loops (only once)
-refreshLatest();
-setInterval(refreshLatest, 2000);
-
-refreshAnalysis();
-setInterval(refreshAnalysis, 5000);
-
-reloadChart();
-setInterval(reloadChart, 15000);
-</script>
-
-</body>
-</html>
-"""
-
+def index():
+    return render_template("index.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)
