@@ -6,7 +6,7 @@ from db import db_one, db_all, db_exec
 
 from flask import Flask, jsonify, request, Response, render_template
 
-import paho.mqtt.client as mqtt
+from mqtt_client import publish_command
 
 app = Flask(__name__)
 
@@ -52,11 +52,7 @@ def api_command():
         ),
     )
 
-    # publish to MQTT
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
-    client.publish(TOPIC_CMD, json.dumps(payload))
-    client.disconnect()
+    publish_command(payload)
 
     return jsonify({"ok": True, "published": payload})
 
