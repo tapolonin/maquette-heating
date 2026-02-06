@@ -2,6 +2,7 @@ import json
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
+from db import db_one, db_all, db_exec
 
 from flask import Flask, jsonify, request, Response, render_template
 
@@ -14,24 +15,6 @@ DB_PATH = Path(__file__).resolve().parents[1] / "data" / "maquette.db"
 BROKER_HOST = "localhost"
 BROKER_PORT = 1883
 TOPIC_CMD = "maquette/commandes"
-
-def db_one(sql, params=()):
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    cur = con.cursor()
-    cur.execute(sql, params)
-    row = cur.fetchone()
-    con.close()
-    return dict(row) if row else None
-
-def db_all(sql, params=()):
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    cur = con.cursor()
-    cur.execute(sql, params)
-    rows = cur.fetchall()
-    con.close()
-    return [dict(r) for r in rows]
 
 def now_iso():
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
@@ -59,15 +42,15 @@ def api_command():
         "heater_manual": int(data.get("heater_manual", 0)),
     }
 
-    # log command in DB
-    con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("""
-        INSERT INTO commands (timestamp, mode, setpoint, heater_manual)
-        VALUES (?, ?, ?, ?)
-    """, (payload["timestamp"], payload["mode"], payload["setpoint"], payload["heater_manual"]))
-    con.commit()
-    con.close()
+    db_exec(
+        "INSERT INTO commands(timestamp, mode, setpoint, heater_manual) VALUES(?,?,?,?)",
+        (
+            payload["timestamp"],
+            payload["mode"],
+            payload["setpoint"],
+            payload["heater_manual"],
+        ),
+    )
 
     # publish to MQTT
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
