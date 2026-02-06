@@ -236,8 +236,12 @@ async function refreshLatest() {
   const data = await r.json();
   document.getElementById('latest').innerText = JSON.stringify(data, null, 2);
 }
-setInterval(refreshLatest, 2000);
-refreshLatest();
+
+async function refreshAnalysis() {
+  const r = await fetch('/api/analysis?n=300');
+  const data = await r.json();
+  document.getElementById('analysis').innerText = JSON.stringify(data, null, 2);
+}
 
 async function sendCommand() {
   const payload = {
@@ -256,7 +260,7 @@ async function sendCommand() {
   document.getElementById('cmdresp').innerText = JSON.stringify(data, null, 2);
 }
 
-async function loadRecent(n=120) {
+async function loadRecent(n = 120) {
   const r = await fetch('/api/recent?n=' + n);
   return await r.json();
 }
@@ -285,26 +289,22 @@ async function reloadChart() {
     options: {
       responsive: true,
       plugins: { legend: { display: true } },
-      scales: {
-        x: { ticks: { maxTicksLimit: 10 } }
-      }
+      scales: { x: { ticks: { maxTicksLimit: 10 } } }
     }
   });
-async function refreshAnalysis() {
-  const r = await fetch('/api/analysis?n=300');
-  const data = await r.json();
-  document.getElementById('analysis').innerText =
-    JSON.stringify(data, null, 2);
 }
 
-setInterval(refreshAnalysis, 5000);
+// start loops (only once)
+refreshLatest();
+setInterval(refreshLatest, 2000);
+
 refreshAnalysis();
-
-}
+setInterval(refreshAnalysis, 5000);
 
 reloadChart();
-setInterval(reloadChart, 15000); // refresh chart every 15s
+setInterval(reloadChart, 15000);
 </script>
+
 </body>
 </html>
 """
