@@ -1,7 +1,6 @@
 
 
-````markdown
-# Maquette Heating – Quick Start
+## Maquette Heating – Quick Start
 
 Local system:
 - MQTT broker (Mosquitto)
@@ -15,7 +14,7 @@ Works on:
 
 
 
-# 1. Run on Laptop (development)
+## 1. Run on Laptop (development)
 
 ## 1. Go to project folder
 ```powershell
