@@ -17,6 +17,7 @@ def main():
         temp_out REAL,
         hum_out REAL,
         heater_state INTEGER,
+        mosfet_percent REAL
     );
     """)
 
