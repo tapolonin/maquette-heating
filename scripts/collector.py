@@ -8,7 +8,7 @@ BROKER_PORT = 1883
 TOPIC_MEAS = "maquette/mesures"
 
 DB_PATH = Path(__file__).resolve().parents[1] / "data" / "maquette.db"
-REQUIRED_KEYS = {"timestamp", "temp_in", "hum_in", "temp_out", "hum_out", "heater_state", "status"}
+REQUIRED_KEYS = {"timestamp", "temp_in", "hum_in", "temp_out", "hum_out", "heater_state"}
 
 def insert_measurement(payload: dict):
     missing = REQUIRED_KEYS - set(payload.keys())
@@ -18,7 +18,7 @@ def insert_measurement(payload: dict):
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
     cur.execute("""
-        INSERT INTO measurements (timestamp, temp_in, hum_in, temp_out, hum_out, heater_state, status)
+        INSERT INTO measurements (timestamp, temp_in, hum_in, temp_out, hum_out, heater_state)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (
         payload["timestamp"],
@@ -27,7 +27,6 @@ def insert_measurement(payload: dict):
         float(payload["temp_out"]),
         float(payload["hum_out"]),
         int(payload["heater_state"]),
-        str(payload["status"]),
     ))
     con.commit()
     con.close()
