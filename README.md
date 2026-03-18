@@ -140,7 +140,7 @@ Terminal 2:
 ```bash
 cd ~/maquette
 source .venv/bin/activate
-python scripts/fake_publisher.py
+python app/esp32_receiver.py
 ```
 
 Terminal 3:
