@@ -31,6 +31,7 @@ def main():
             "temp_out": round(temp_out, 2),
             "hum_out": round(random.uniform(45, 70), 1),
             "heater_state": heater_state,
+            "mosfet_percent": heater_state,
         }
 
         client.publish(TOPIC_MEAS, json.dumps(payload))
