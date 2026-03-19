@@ -59,7 +59,7 @@ def api_command():
 @app.get("/api/export.csv")
 def export_csv():
     # export last N rows (default 1000)
-    n = int(request.args.get("n", "1000"))
+    n = int(request.args.get("n", "20000"))
 
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
