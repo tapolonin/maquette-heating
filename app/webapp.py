@@ -64,7 +64,7 @@ def export_csv():
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
     cur.execute("""
-        SELECT timestamp, temp_in, hum_in, temp_out, hum_out, heater_state, status
+        SELECT timestamp, temp_in, hum_in, temp_out, hum_out, heater_state, mosfet_percent
         FROM measurements
         ORDER BY id DESC
         LIMIT ?
@@ -74,7 +74,7 @@ def export_csv():
 
     rows.reverse()
 
-    header = "timestamp,temp_in,hum_in,temp_out,hum_out,heater_state,status\n"
+    header = "timestamp,temp_in,hum_in,temp_out,hum_out,heater_state,mosfet_percent\n"
     lines = [header]
     for r in rows:
         # safe CSV formatting
