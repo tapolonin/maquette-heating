@@ -9,24 +9,11 @@ TOPIC_MEAS = "maquette/mesures"
 
 DB_PATH = Path(__file__).resolve().parents[1] / "data" / "maquette.db"
 
-REQUIRED_KEYS = {
-    "timestamp",
-    "temp_in",
-    "hum_in",
-    "temp_out",
-    "hum_out",
-    "heater_state",
-    "mosfet_percent",
-}
-
 
 def insert_measurement(payload: dict):
-    missing = REQUIRED_KEYS - set(payload.keys())
-    if missing:
-        raise ValueError(f"Missing keys: {missing}")
-
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
+
     cur.execute("""
         INSERT INTO measurements (
             timestamp,
@@ -35,17 +22,23 @@ def insert_measurement(payload: dict):
             temp_out,
             hum_out,
             heater_state,
-            mosfet_percent
+            mosfet_percent,
+            is_complete,
+            raw_message,
+            missing_fields
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        payload["timestamp"],
-        float(payload["temp_in"]),
-        float(payload["hum_in"]),
-        float(payload["temp_out"]),
-        float(payload["hum_out"]),
-        int(payload["heater_state"]),
-        float(payload["mosfet_percent"]),
+        payload.get("timestamp"),
+        payload.get("temp_in"),
+        payload.get("hum_in"),
+        payload.get("temp_out"),
+        payload.get("hum_out"),
+        payload.get("heater_state"),
+        payload.get("mosfet_percent"),
+        int(payload.get("is_complete", 0)),
+        payload.get("raw_message"),
+        json.dumps(payload.get("missing_fields", [])),
     ))
     con.commit()
     con.close()
@@ -66,11 +59,12 @@ def on_message(client, userdata, msg):
 
 def main():
     if not DB_PATH.exists():
-        raise FileNotFoundError(f"DB not found: {DB_PATH} (run scripts/init_db.py)")
+        raise FileNotFoundError(f"DB not found: {DB_PATH}")
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
+    print("🚀 Collector starting...")
     client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
     client.loop_forever()
 

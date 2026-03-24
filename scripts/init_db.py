@@ -17,7 +17,10 @@ def main():
         temp_out REAL,
         hum_out REAL,
         heater_state INTEGER,
-        mosfet_percent REAL
+        mosfet_percent REAL,
+        is_complete INTEGER,
+        raw_message TEXT,
+        missing_fields TEXT
     );
     """)
 
