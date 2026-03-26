@@ -439,8 +439,24 @@ function buildDatasetsForMode(mode, rows) {
   if (mode === "temperature") {
     return {
       temp: [
-        { label: 'Temp In (°C)', data: tempIn, tension: 0.2 },
-        { label: 'Temp Out (°C)', data: tempOut, tension: 0.2 }
+        {
+          label: 'Temp In (°C)',
+          data: tempIn,
+          tension: 0.2,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 2,
+          pointHitRadius: 4
+        },
+        { 
+          label: 'Temp Out (°C)',
+          data: tempOut,
+          tension: 0.2,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 2,
+          pointHitRadius: 4
+        }
       ],
       hum: null
     };
@@ -449,8 +465,24 @@ function buildDatasetsForMode(mode, rows) {
   return {
     temp: null,
     hum: [
-      { label: 'Humidity In (%)', data: humIn, tension: 0.2 },
-      { label: 'Humidity Out (%)', data: humOut, tension: 0.2 }
+      { 
+        label: 'Humidity In (%)',
+        data: humIn, 
+        tension: 0.2,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 2,
+        pointHitRadius: 4
+      },
+      { 
+        label: 'Humidity Out (%)',
+        data: humOut,
+        tension: 0.2,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 2,
+        pointHitRadius: 4
+      }
     ]
   };
 }
