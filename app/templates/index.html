@@ -4,29 +4,136 @@
   <meta charset="utf-8"/>
   <title>Maquette - Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto; }
-    pre { background: #f3f3f3; padding: 12px; border-radius: 8px; }
-    .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; min-width: 280px; flex: 1; }
-    input, select, button { padding: 6px; margin: 6px 0; }
-    canvas { background: #fff; }
-    .links a { margin-right: 12px; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 0 12px;
+      background: #fafafa;
+      color: #222;
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+    }
+
+    .row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 14px;
+      background: white;
+      min-width: 280px;
+      flex: 1;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    input, select, button {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background: white;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #f3f3f3;
+    }
+
+    pre {
+      background: #f6f6f6;
+      padding: 12px;
+      border-radius: 8px;
+      overflow: auto;
+      margin: 0;
+    }
+
+    .links a {
+      margin-right: 12px;
+    }
+
+    .chart-wrap {
+      margin-top: 20px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .status-strip {
+      display: flex;
+      width: 100%;
+      height: 20px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #ddd;
+      margin-top: 12px;
+      background: #f1f1f1;
+    }
+
+    .status-block {
+      height: 100%;
+      min-width: 2px;
+    }
+
+    .status-off {
+      background: #e9ecef;
+    }
+
+    .status-on {
+      background: #ffd6d6;
+    }
+
+    .status-strong {
+      background: #ff7b7b;
+    }
+
+    .small-note {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 8px;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    canvas {
+      background: #fff;
+    }
   </style>
 </head>
 <body>
-  <h1>Maquette Dashboard (Local)</h1>
+  <h1>Maquette Dashboard</h1>
 
   <div class="links">
-    <a href="/api/export.csv?n=20000">Download CSV (last 20000)</a>
+    <a id="csvLink" href="/api/export.csv?n=20000">Download CSV</a>
   </div>
 
-<div class="card" style="margin-top: 20px;">
-  <h2>Analysis (recent data)</h2>
-  <pre id="analysis">Loading...</pre>
-</div>
-
-  <div class="row">
+  <div class="row" style="margin-top: 20px;">
     <div class="card">
       <h2>Latest measurement</h2>
       <pre id="latest">Loading...</pre>
@@ -34,6 +141,7 @@
 
     <div class="card">
       <h2>Control</h2>
+
       <label>Mode</label><br/>
       <select id="mode">
         <option value="auto">auto</option>
@@ -54,28 +162,102 @@
     </div>
   </div>
 
-  <div class="card" style="margin-top: 20px;">
-    <h2>Temperature (last points)</h2>
-    <label>Number of points:
-      <input id="npoints" type="number" value="120" min="10" max="5000"/>
-    </label>
-    <button onclick="reloadChart()">Reload</button>
-    <canvas id="tempChart" height="120"></canvas>
+  <div class="card chart-wrap">
+    <div class="section-title">
+      <h2>Visualisation</h2>
+      <div class="controls">
+        <button onclick="moveCollectedDay(-1)">Previous day</button>
+        <select id="daySelect"></select>
+        <button onclick="moveCollectedDay(1)">Next day</button>
+
+        <select id="viewMode">
+          <option value="temperature">Temperature</option>
+          <option value="humidity">Humidity</option>
+        </select>
+
+        <button onclick="reloadAll()">Load</button>
+        <button onclick="resetZoomAll()">Reset zoom</button>
+      </div>
+    </div>
+
+    <div class="small-note">
+      Mouse wheel = zoom. Click and drag horizontally = move inside the zoomed graph. Hover to see exact time and value.
+    </div>
+
+    <div id="tempSection" style="margin-top: 20px;">
+      <h3 id="tempTitle">Temperature</h3>
+      <canvas id="tempChart" height="110"></canvas>
+    </div>
+
+    <div id="humSection" style="margin-top: 28px;">
+      <h3 id="humTitle">Humidity</h3>
+      <canvas id="humChart" height="110"></canvas>
+    </div>
+
+    <div id="mosfetSection" style="margin-top: 28px;">
+      <h3 id="mosfetTitle">MOSFET / heater activity</h3>
+      <div id="mosfetStrip" class="status-strip"></div>
+      <div class="small-note">
+        Grey = no data, white = 0%, orange → red = increasing MOSFET power.
+      </div>
+    </div>
   </div>
 
 <script>
-let chart;
+let tempChart = null;
+let humChart = null;
+let availableDays = [];
+let currentRows = [];
+let currentDay = null;
+let currentMode = "temperature";
+
+function formatTimeOnly(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (isNaN(d)) {
+    const parts = ts.split("T");
+    return parts[1] ? parts[1].slice(0, 8) : ts;
+  }
+  return d.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
+function formatLatest(obj) {
+  if (!obj || !obj.timestamp) return "No data";
+  return JSON.stringify(obj, null, 2);
+}
+
+function mosfetColor(percent) {
+  if (percent === null || percent === undefined || isNaN(percent)) {
+    return "#bfbfbf"; // no data = grey
+  }
+
+  percent = Math.max(0, Math.min(100, Number(percent)));
+
+  let r, g, b;
+
+  if (percent < 50) {
+    const t = percent / 50;
+    r = 255;
+    g = Math.round(255 - (255 - 165) * t);
+    b = Math.round(255 - 255 * t);
+  } else {
+    const t = (percent - 50) / 50;
+    r = Math.round(255 - (255 - 220) * t);
+    g = Math.round(165 - (165 - 50) * t);
+    b = Math.round(0 + 50 * t);
+  }
+
+  return `rgb(${r}, ${g}, ${b})`;
+}
 
 async function refreshLatest() {
   const r = await fetch('/api/latest');
   const data = await r.json();
-  document.getElementById('latest').innerText = JSON.stringify(data, null, 2);
-}
-
-async function refreshAnalysis() {
-  const r = await fetch('/api/analysis?n=300');
-  const data = await r.json();
-  document.getElementById('analysis').innerText = JSON.stringify(data, null, 2);
+  document.getElementById('latest').innerText = formatLatest(data);
 }
 
 async function sendCommand() {
@@ -95,50 +277,337 @@ async function sendCommand() {
   document.getElementById('cmdresp').innerText = JSON.stringify(data, null, 2);
 }
 
-async function loadRecent(n = 120) {
-  const r = await fetch('/api/recent?n=' + n);
+async function loadDays() {
+  const r = await fetch('/api/days');
+  const days = await r.json();
+
+  availableDays = days.map(d => d.day).filter(Boolean);
+
+  const select = document.getElementById('daySelect');
+  const oldValue = select.value;
+
+  select.innerHTML = '';
+
+  availableDays.forEach(day => {
+    const opt = document.createElement('option');
+    opt.value = day;
+    opt.textContent = day;
+    select.appendChild(opt);
+  });
+
+  if (availableDays.includes(oldValue)) {
+    select.value = oldValue;
+  } else if (availableDays.length > 0) {
+    select.value = availableDays[0];
+  }
+}
+
+async function loadDayData(day) {
+  const r = await fetch('/api/day?day=' + encodeURIComponent(day));
   return await r.json();
 }
 
-async function reloadChart() {
-  const n = parseInt(document.getElementById('npoints').value);
-  const rows = await loadRecent(n);
+function renderMosfetStrip(rows) {
+  const strip = document.getElementById('mosfetStrip');
+  strip.innerHTML = '';
 
-  const labels = rows.map(r => r.timestamp);
-  const tin = rows.map(r => r.temp_in);
-  const tout = rows.map(r => r.temp_out);
+  if (!rows.length) return;
 
-  const ctx = document.getElementById('tempChart');
-
-  if (chart) chart.destroy();
-
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        { label: 'Temp In (°C)', data: tin, tension: 0.2 },
-        { label: 'Temp Out (°C)', data: tout, tension: 0.2 }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: true } },
-      scales: { x: { ticks: { maxTicksLimit: 10 } } }
-    }
+  rows.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'status-block';
+    div.style.background = mosfetColor(row.mosfet_percent);
+    div.style.flex = '1 1 0';
+    div.title = `${formatTimeOnly(row.timestamp)} | MOSFET: ${
+      row.mosfet_percent == null ? 'NA' : row.mosfet_percent + '%'
+    }`;
+    strip.appendChild(div);
   });
 }
 
-// start loops (only once)
-refreshLatest();
-setInterval(refreshLatest, 2000);
+function updateCsvLink(day) {
+  const start = `${day}T00:00:00`;
+  const end = `${day}T23:59:59`;
+  document.getElementById('csvLink').href =
+    `/api/export.csv?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&n=20000`;
+}
 
-refreshAnalysis();
-setInterval(refreshAnalysis, 5000);
+function getChartOptions(day, rawRows) {
+  return {
+    responsive: true,
+    maintainAspectRatio: true,
+    animation: false,
+    interaction: {
+      mode: 'index',
+      intersect: false
+    },
+    plugins: {
+      legend: {
+        display: true
+      },
+      tooltip: {
+        callbacks: {
+          title: function(items) {
+            const i = items[0].dataIndex;
+            const row = rawRows[i];
+            return row && row.timestamp ? row.timestamp : day;
+          }
+        }
+      },
+      zoom: {
+        limits: {
+          x: { min: 'original', max: 'original', minRange: 5 }
+        },
+        pan: {
+          enabled: true,
+          mode: 'x',
+          threshold: 4
+        },
+        zoom: {
+          wheel: {
+            enabled: true
+          },
+          pinch: {
+            enabled: true
+          },
+          drag: {
+            enabled: false
+          },
+          mode: 'x'
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          maxTicksLimit: 12
+        }
+      }
+    }
+  };
+}
 
-reloadChart();
-setInterval(reloadChart, 15000);
+function createChart(canvasId, labels, datasets, day, rows) {
+  const ctx = document.getElementById(canvasId);
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets
+    },
+    options: getChartOptions(day, rows)
+  });
+}
+
+function isZoomed(chart) {
+  if (!chart) return false;
+  const x = chart.scales.x;
+  if (!x) return false;
+  return x.min !== x.options.min || x.max !== x.options.max;
+}
+
+function saveViewState(chart) {
+  if (!chart) return null;
+  const x = chart.scales.x;
+  if (!x) return null;
+
+  return {
+    zoomed: isZoomed(chart),
+    min: x.min,
+    max: x.max
+  };
+}
+
+function restoreViewState(chart, state) {
+  if (!chart || !state) return;
+
+  if (state.zoomed) {
+    chart.options.scales.x.min = state.min;
+    chart.options.scales.x.max = state.max;
+  } else {
+    chart.options.scales.x.min = undefined;
+    chart.options.scales.x.max = undefined;
+  }
+}
+
+function buildDatasetsForMode(mode, rows) {
+  const tempIn = rows.map(r => r.temp_in);
+  const tempOut = rows.map(r => r.temp_out);
+  const humIn = rows.map(r => r.hum_in);
+  const humOut = rows.map(r => r.hum_out);
+
+  if (mode === "temperature") {
+    return {
+      temp: [
+        { label: 'Temp In (°C)', data: tempIn, tension: 0.2 },
+        { label: 'Temp Out (°C)', data: tempOut, tension: 0.2 }
+      ],
+      hum: null
+    };
+  }
+
+  return {
+    temp: null,
+    hum: [
+      { label: 'Humidity In (%)', data: humIn, tension: 0.2 },
+      { label: 'Humidity Out (%)', data: humOut, tension: 0.2 }
+    ]
+  };
+}
+
+function syncChart(chart, labels, datasets, rows, day) {
+  if (!chart) return null;
+
+  const state = saveViewState(chart);
+
+  chart.data.labels = labels;
+  chart.data.datasets = datasets;
+  chart.options.plugins.tooltip.callbacks.title = function(items) {
+    const i = items[0].dataIndex;
+    const row = rows[i];
+    return row && row.timestamp ? row.timestamp : day;
+  };
+
+  restoreViewState(chart, state);
+  chart.update('none');
+  return chart;
+}
+
+function ensureChartsForMode(mode, labels, rows, day) {
+  const tempSection = document.getElementById('tempSection');
+  const humSection = document.getElementById('humSection');
+  const mosfetSection = document.getElementById('mosfetSection');
+
+  const tempTitle = document.getElementById('tempTitle');
+  const humTitle = document.getElementById('humTitle');
+  const mosfetTitle = document.getElementById('mosfetTitle');
+
+  tempTitle.textContent = `Temperature — ${day}`;
+  humTitle.textContent = `Humidity — ${day}`;
+  mosfetTitle.textContent = `MOSFET / heater activity — ${day}`;
+
+  mosfetSection.classList.remove('hidden');
+
+  const datasets = buildDatasetsForMode(mode, rows);
+
+  if (mode === "temperature") {
+    tempSection.classList.remove('hidden');
+    humSection.classList.add('hidden');
+
+    if (!tempChart) {
+      tempChart = createChart('tempChart', labels, datasets.temp, day, rows);
+    } else {
+      syncChart(tempChart, labels, datasets.temp, rows, day);
+    }
+
+    if (humChart) {
+      humChart.destroy();
+      humChart = null;
+    }
+  } else {
+    tempSection.classList.add('hidden');
+    humSection.classList.remove('hidden');
+
+    if (!humChart) {
+      humChart = createChart('humChart', labels, datasets.hum, day, rows);
+    } else {
+      syncChart(humChart, labels, datasets.hum, rows, day);
+    }
+
+    if (tempChart) {
+      tempChart.destroy();
+      tempChart = null;
+    }
+  }
+}
+
+async function renderDay() {
+  const day = document.getElementById('daySelect').value;
+  const mode = document.getElementById('viewMode').value;
+
+  if (!day) return;
+
+  currentDay = day;
+  currentMode = mode;
+
+  const rows = await loadDayData(day);
+  currentRows = rows;
+
+  updateCsvLink(day);
+  renderMosfetStrip(rows);
+
+  const labels = rows.map(r => formatTimeOnly(r.timestamp));
+  ensureChartsForMode(mode, labels, rows, day);
+}
+
+function moveCollectedDay(direction) {
+  const select = document.getElementById('daySelect');
+  const index = availableDays.indexOf(select.value);
+  if (index === -1) return;
+
+  const newIndex = index - direction;
+  if (newIndex >= 0 && newIndex < availableDays.length) {
+    select.value = availableDays[newIndex];
+    renderDay();
+  }
+}
+
+function resetZoomAll() {
+  if (tempChart) {
+    tempChart.resetZoom();
+    tempChart.options.scales.x.min = undefined;
+    tempChart.options.scales.x.max = undefined;
+    tempChart.update('none');
+  }
+
+  if (humChart) {
+    humChart.resetZoom();
+    humChart.options.scales.x.min = undefined;
+    humChart.options.scales.x.max = undefined;
+    humChart.update('none');
+  }
+}
+
+async function reloadAll() {
+  await loadDays();
+  await renderDay();
+}
+
+async function refreshDataWithoutJump() {
+  const selectedDay = document.getElementById('daySelect').value;
+  const beforeDays = [...availableDays];
+
+  await loadDays();
+
+  const select = document.getElementById('daySelect');
+
+  if (beforeDays.length === 0 && availableDays.length > 0 && !select.value) {
+    select.value = availableDays[0];
+  }
+
+  // keep currently selected collected day if it still exists
+  if (!availableDays.includes(selectedDay) && availableDays.length > 0) {
+    select.value = availableDays[0];
+  } else {
+    select.value = selectedDay;
+  }
+
+  await renderDay();
+}
+
+async function init() {
+  await loadDays();
+  await refreshLatest();
+  await renderDay();
+
+  document.getElementById('daySelect').addEventListener('change', renderDay);
+  document.getElementById('viewMode').addEventListener('change', renderDay);
+
+  setInterval(refreshLatest, 2000);
+  setInterval(refreshDataWithoutJump, 15000);
+}
+
+init();
 </script>
-
 </body>
 </html>

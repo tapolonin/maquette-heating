@@ -1,7 +1,6 @@
-import json
 import sqlite3
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from db import db_one, db_all, db_exec
 
 from flask import Flask, jsonify, request, Response, render_template
@@ -24,10 +23,99 @@ def api_latest():
     row = db_one("SELECT * FROM measurements ORDER BY id DESC LIMIT 1;")
     return jsonify(row or {})
 
+@app.get("/api/days")
+def api_days():
+    rows = db_all("""
+        SELECT DISTINCT substr(timestamp, 1, 10) AS day
+        FROM measurements
+        WHERE timestamp IS NOT NULL
+        ORDER BY day DESC
+    """)
+    return jsonify(rows)
+
+
+@app.get("/api/day")
+def api_day():
+    day = request.args.get("day")
+    limit = int(request.args.get("limit", "2000"))
+
+    if not day:
+        return jsonify({"error": "Missing day parameter, expected YYYY-MM-DD"}), 400
+
+    rows = db_all("""
+        SELECT
+            id,
+            timestamp,
+            temp_in,
+            hum_in,
+            temp_out,
+            hum_out,
+            heater_state,
+            mosfet_percent,
+            is_complete,
+            raw_message,
+            missing_fields
+        FROM measurements
+        WHERE substr(timestamp, 1, 10) = ?
+        ORDER BY timestamp ASC
+        LIMIT ?
+    """, (day, limit))
+
+    return jsonify(rows)
+
+
+@app.get("/api/range")
+def api_range():
+    start = request.args.get("start")
+    end = request.args.get("end")
+    limit = int(request.args.get("limit", "3000"))
+
+    if not start or not end:
+        return jsonify({"error": "Missing start or end parameter"}), 400
+
+    rows = db_all("""
+        SELECT
+            id,
+            timestamp,
+            temp_in,
+            hum_in,
+            temp_out,
+            hum_out,
+            heater_state,
+            mosfet_percent,
+            is_complete,
+            raw_message,
+            missing_fields
+        FROM measurements
+        WHERE timestamp >= ? AND timestamp <= ?
+        ORDER BY timestamp ASC
+        LIMIT ?
+    """, (start, end, limit))
+
+    return jsonify(rows)
+
+
 @app.get("/api/recent")
 def api_recent():
-    n = int(request.args.get("n", "120"))  # last 120 points
-    rows = db_all("SELECT * FROM measurements ORDER BY id DESC LIMIT ?;", (n,))
+    # Keep temporarily for compatibility, but prefer /api/day or /api/range in the frontend
+    n = int(request.args.get("n", "120"))
+    rows = db_all("""
+        SELECT
+            id,
+            timestamp,
+            temp_in,
+            hum_in,
+            temp_out,
+            hum_out,
+            heater_state,
+            mosfet_percent,
+            is_complete,
+            raw_message,
+            missing_fields
+        FROM measurements
+        ORDER BY id DESC
+        LIMIT ?;
+    """, (n,))
     rows.reverse()
     return jsonify(rows)
 
@@ -58,27 +146,61 @@ def api_command():
 
 @app.get("/api/export.csv")
 def export_csv():
-    # export last N rows (default 1000)
+    start = request.args.get("start")
+    end = request.args.get("end")
     n = int(request.args.get("n", "20000"))
 
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
-    cur.execute("""
-        SELECT timestamp, temp_in, hum_in, temp_out, hum_out, heater_state, mosfet_percent
-        FROM measurements
-        ORDER BY id DESC
-        LIMIT ?
-    """, (n,))
+
+    if start and end:
+        cur.execute("""
+            SELECT
+                timestamp,
+                temp_in,
+                hum_in,
+                temp_out,
+                hum_out,
+                heater_state,
+                mosfet_percent,
+                is_complete,
+                raw_message,
+                missing_fields
+            FROM measurements
+            WHERE timestamp >= ? AND timestamp <= ?
+            ORDER BY timestamp ASC
+            LIMIT ?
+        """, (start, end, n))
+    else:
+        cur.execute("""
+            SELECT
+                timestamp,
+                temp_in,
+                hum_in,
+                temp_out,
+                hum_out,
+                heater_state,
+                mosfet_percent,
+                is_complete,
+                raw_message,
+                missing_fields
+            FROM measurements
+            ORDER BY id DESC
+            LIMIT ?
+        """, (n,))
     rows = cur.fetchall()
     con.close()
 
-    rows.reverse()
+    if not (start and end):
+        rows.reverse()
 
-    header = "timestamp,temp_in,hum_in,temp_out,hum_out,heater_state,mosfet_percent\n"
+    header = (
+        "timestamp,temp_in,hum_in,temp_out,hum_out,"
+        "heater_state,mosfet_percent,is_complete,raw_message,missing_fields\n"
+    )
     lines = [header]
     for r in rows:
-        # safe CSV formatting
-        line = ",".join("" if v is None else str(v) for v in r) + "\n"
+        line = ",".join("" if v is None else str(v).replace("\n", " ").replace(",", ";") for v in r) + "\n"
         lines.append(line)
 
     csv_data = "".join(lines)
@@ -88,55 +210,6 @@ def export_csv():
         headers={"Content-Disposition": "attachment; filename=measurements.csv"}
     )
 
-
-@app.get("/api/analysis")
-def api_analysis():
-    # number of recent points
-    n = int(request.args.get("n", "300"))
-
-    con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("""
-        SELECT temp_in, temp_out, heater_state
-        FROM measurements
-        ORDER BY id DESC
-        LIMIT ?
-    """, (n,))
-    rows = cur.fetchall()
-    con.close()
-
-    if not rows:
-        return jsonify({})
-
-    rows = list(reversed(rows))
-
-    tin = [r[0] for r in rows if r[0] is not None]
-    tout = [r[1] for r in rows if r[1] is not None]
-    heater = [r[2] for r in rows if r[2] is not None]
-
-    avg_tin = sum(tin) / len(tin) if tin else 0
-    avg_tout = sum(tout) / len(tout) if tout else 0
-    delta_t = avg_tin - avg_tout
-
-    heater_on_ratio = sum(heater) / len(heater) if heater else 0
-
-    # assume heater power = 25 W (adjust later if needed)
-    heater_power = 25.0
-
-    # assume 5s between samples (same as fake publisher)
-    sample_period_s = 5
-    total_time_h = (len(heater) * sample_period_s) / 3600.0
-
-    energy_wh = heater_power * total_time_h * heater_on_ratio
-
-    return jsonify({
-        "avg_temp_in": round(avg_tin, 2),
-        "avg_temp_out": round(avg_tout, 2),
-        "delta_t": round(delta_t, 2),
-        "heater_on_percent": round(heater_on_ratio * 100, 1),
-        "estimated_energy_Wh": round(energy_wh, 2),
-        "samples_used": len(rows)
-    })
 
 @app.get("/")
 def index():
