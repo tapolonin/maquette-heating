@@ -11,8 +11,8 @@ MQTT_TOPIC = "maquette/mesures"
 MQTT_HOST = "localhost"
 MQTT_PORT = 1883
 
-# ESP32_IP = "127.0.0.1"
-ESP32_IP = "172.20.10.7"
+ESP32_IP = "127.0.0.1" #laptop
+# ESP32_IP = "172.20.10.7" #raspberry
 
 SEND_PORT = 5005
 RECEIVE_PORT = 5006
@@ -39,9 +39,9 @@ def parse_message(text: str):
         }
 
         # Extract values independently
-        temp_in = extract_float(r"INDOOR\s+([\d.]+)", text)
-        temp_out = extract_float(r"OUTDOOR\s+([\d.]+)", text)
 
+        temp_out = extract_float(r"OUTDOOR\s+([\d.]+)", text)
+        temp_in = extract_float(r"INDOOR\s+([\d.]+)", text)
         hum_matches = re.findall(r"(?:INDOOR|OUTDOOR)\s+([\d.]+)%", text, re.IGNORECASE)
         hum_in = None
         hum_out = None
