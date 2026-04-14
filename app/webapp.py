@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from db import db_one, db_all, db_exec
 
 from flask import Flask, jsonify, request, Response, render_template
@@ -10,10 +10,6 @@ from mqtt_client import publish_command
 app = Flask(__name__)
 
 DB_PATH = Path(__file__).resolve().parents[1] / "data" / "maquette.db"
-
-BROKER_HOST = "localhost"
-BROKER_PORT = 1883
-TOPIC_CMD = "maquette/commandes"
 
 def now_iso():
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
@@ -123,20 +119,36 @@ def api_recent():
 def api_command():
     data = request.get_json(force=True)
 
+    mode = data.get("mode")
+    value = data.get("value", 0)
+
+    if mode not in {"auto", "manual", "off"}:
+        return jsonify({"error": "mode must be 'auto', 'manual', or 'off'"}), 400
+
+    try:
+        if mode == "off":
+            value = 0
+        else:
+            value = float(value)
+    except (TypeError, ValueError):
+        return jsonify({"error": "value must be a number"}), 400
+
+    if mode == "manual" and not (0 <= value <= 100):
+        return jsonify({"error": "manual value must be between 0 and 100"}), 400
+
     payload = {
         "timestamp": now_iso(),
-        "mode": data.get("mode", "auto"),
-        "setpoint": float(data.get("setpoint", 21.0)),
-        "heater_manual": int(data.get("heater_manual", 0)),
+        "mode": mode,
+        "value": value,
     }
 
+    # Temporary: reuse existing commands table columns
     db_exec(
-        "INSERT INTO commands(timestamp, mode, setpoint, heater_manual) VALUES(?,?,?,?)",
+        "INSERT INTO commands(timestamp, mode, value) VALUES(?,?,?)",
         (
             payload["timestamp"],
             payload["mode"],
-            payload["setpoint"],
-            payload["heater_manual"],
+            payload["value"],
         ),
     )
 

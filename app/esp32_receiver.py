@@ -93,7 +93,7 @@ def main():
 
     while True:
         # send ping
-        sock.sendto("HELLO BEEES".encode(), (ESP32_IP, SEND_PORT))
+        # sock.sendto("HELLO BEEES".encode(), (ESP32_IP, SEND_PORT))
 
         try:
             data, addr = sock.recvfrom(1024)

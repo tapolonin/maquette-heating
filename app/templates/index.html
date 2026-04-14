@@ -124,6 +124,12 @@
     canvas {
       background: #fff;
     }
+
+    .tab-active {
+      background: #e8f0ff;
+      border-color: #7aa7ff;
+      font-weight: bold;
+}
   </style>
 </head>
 <body>
@@ -142,22 +148,26 @@
     <div class="card">
       <h2>Control</h2>
 
-      <label>Mode</label><br/>
-      <select id="mode">
-        <option value="auto">auto</option>
-        <option value="manual">manual</option>
-      </select><br/>
+      <div class="controls" style="margin-bottom: 16px;">
+        <button id="autoTab" type="button" onclick="setControlMode('auto')">Automatic</button>
+        <button id="manualTab" type="button" onclick="setControlMode('manual')">Manual</button>
+      </div>
 
-      <label>Setpoint (°C)</label><br/>
-      <input id="setpoint" type="number" step="0.1" value="21.0"/><br/>
+      <div id="autoControls">
+        <label>Target temperature (°C)</label><br/>
+        <input id="autoValue" type="number" step="0.1" value="21.0"/><br/><br/>
+      </div>
 
-      <label>Manual heater</label><br/>
-      <select id="heater_manual">
-        <option value="0">OFF</option>
-        <option value="1">ON</option>
-      </select><br/>
+      <div id="manualControls" class="hidden">
+        <label>MOSFET power (%)</label><br/>
+        <input id="manualValue" type="number" step="1" min="0" max="100" value="0"/><br/><br/>
+      </div>
 
-      <button onclick="sendCommand()">Send command</button>
+      <div class="controls">
+        <button type="button" onclick="applyCommand()">Apply</button>
+        <button type="button" onclick="turnOff()">Turn off</button>
+      </div>
+
       <pre id="cmdresp"></pre>
     </div>
   </div>
@@ -260,21 +270,74 @@ async function refreshLatest() {
   document.getElementById('latest').innerText = formatLatest(data);
 }
 
-async function sendCommand() {
-  const payload = {
-    mode: document.getElementById('mode').value,
-    setpoint: parseFloat(document.getElementById('setpoint').value),
-    heater_manual: parseInt(document.getElementById('heater_manual').value)
-  };
+let controlMode = "auto";
 
-  const r = await fetch('/api/command', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload)
-  });
+function setControlMode(mode) {
+  controlMode = mode;
 
-  const data = await r.json();
-  document.getElementById('cmdresp').innerText = JSON.stringify(data, null, 2);
+  document.getElementById("autoControls").classList.toggle("hidden", mode !== "auto");
+  document.getElementById("manualControls").classList.toggle("hidden", mode !== "manual");
+
+  document.getElementById("autoTab").classList.toggle("tab-active", mode === "auto");
+  document.getElementById("manualTab").classList.toggle("tab-active", mode === "manual");
+}
+
+async function applyCommand() {
+  let payload;
+
+  if (controlMode === "auto") {
+    const value = parseFloat(document.getElementById("autoValue").value);
+    if (isNaN(value)) {
+      document.getElementById("cmdresp").innerText = "Invalid automatic target temperature.";
+      return;
+    }
+
+    payload = {
+      mode: "auto",
+      value
+    };
+  } else {
+    const value = parseFloat(document.getElementById("manualValue").value);
+    if (isNaN(value) || value < 0 || value > 100) {
+      document.getElementById("cmdresp").innerText = "Manual power must be between 0 and 100.";
+      return;
+    }
+
+    payload = {
+      mode: "manual",
+      value
+    };
+  }
+
+  try {
+    const r = await fetch('/api/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const data = await r.json();
+    document.getElementById('cmdresp').innerText = JSON.stringify(data, null, 2);
+  } catch (err) {
+    document.getElementById('cmdresp').innerText = "Request failed: " + err.message;
+  }
+}
+
+async function turnOff() {
+  const payload = { mode: "off" };
+
+  try {
+    const r = await fetch('/api/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const data = await r.json();
+    document.getElementById('cmdresp').innerText = JSON.stringify(data, null, 2);
+  } catch (err) {
+    document.getElementById('cmdresp').innerText = "Request failed: " + err.message;
+  }
 }
 
 async function loadDays() {
@@ -628,6 +691,7 @@ async function refreshDataWithoutJump() {
 }
 
 async function init() {
+  setControlMode("auto");
   await loadDays();
   await refreshLatest();
   await renderDay();

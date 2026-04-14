@@ -1,9 +1,10 @@
 import socket
 import random
+import time
 
-LISTEN_IP = "0.0.0.0"
-LISTEN_PORT = 5005
+RECEIVER_IP = "127.0.0.1"
 RECEIVER_PORT = 5006
+COMMAND_PORT = 5005
 
 temp_in = 22.0
 temp_out = 16.0
@@ -28,7 +29,6 @@ def update_values():
 
 def make_complete():
     return (
-        "HELLO PI\n"
         f"INDOOR {temp_in:.1f} °C| OUTDOOR {temp_out:.1f}°C\n"
         f"INDOOR {hum_in:.1f}% | OUTDOOR {hum_out:.1f}%\n"
         f"MOSFET STATE {mosfet:.0f}\n"
@@ -47,27 +47,21 @@ def make_partial():
 
     if kind == "no_humidity":
         return (
-            "HELLO PI\n"
             f"INDOOR {temp_in:.1f} °C| OUTDOOR {temp_out:.1f}°C\n"
             f"MOSFET STATE {mosfet:.0f}\n"
         )
 
     if kind == "no_mosfet":
         return (
-            "HELLO PI\n"
             f"INDOOR {temp_in:.1f} °C| OUTDOOR {temp_out:.1f}°C\n"
             f"INDOOR {hum_in:.1f}% | OUTDOOR {hum_out:.1f}%\n"
         )
 
     if kind == "temp_only":
-        return (
-            "HELLO PI\n"
-            f"INDOOR {temp_in:.1f} °C| OUTDOOR {temp_out:.1f}°C\n"
-        )
+        return f"INDOOR {temp_in:.1f} °C| OUTDOOR {temp_out:.1f}°C\n"
 
     if kind == "nan_values":
         return (
-            "HELLO PI\n"
             f"INDOOR nan °C| OUTDOOR {temp_out:.1f}°C\n"
             f"INDOOR {hum_in:.1f}% | OUTDOOR nan%\n"
             "MOSFET STATE nan\n"
@@ -75,46 +69,51 @@ def make_partial():
 
     if kind == "missing_percent":
         return (
-            "HELLO PI\n"
             f"INDOOR {temp_in:.1f} °C| OUTDOOR {temp_out:.1f}°C\n"
             f"INDOOR {hum_in:.1f} | OUTDOOR {hum_out:.1f}\n"
             f"MOSFET STATE {mosfet:.0f}\n"
         )
 
-    if kind == "outdoor_missing":
-        return (
-            "HELLO PI\n"
-            f"INDOOR {temp_in:.1f} °C| OUTDOOR \n"
-            f"INDOOR {hum_in:.1f}% | OUTDOOR \n"
-            f"MOSFET STATE {mosfet:.0f}\n"
-        )
+    return (
+        f"INDOOR {temp_in:.1f} °C| OUTDOOR \n"
+        f"INDOOR {hum_in:.1f}% | OUTDOOR \n"
+        f"MOSFET STATE {mosfet:.0f}\n"
+    )
 
 
 def choose_reply():
-    r = random.random()
-    if r < 0.65:
+    if random.random() < 0.65:
         return "complete", make_complete()
     return "partial", make_partial()
 
 
 def main():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((LISTEN_IP, LISTEN_PORT))
+    send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    print(f"Fake ESP32 listening on UDP {LISTEN_PORT}")
+    recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    recv_sock.bind(("0.0.0.0", COMMAND_PORT))
+    recv_sock.setblocking(False)
+
+    print(f"Fake ESP32 sending to {RECEIVER_IP}:{RECEIVER_PORT}")
+    print(f"Fake ESP32 listening for commands on UDP {COMMAND_PORT}")
 
     while True:
-        data, addr = sock.recvfrom(1024)
-        text = data.decode(errors="replace").strip()
-        print(f"Received from {addr}: {text}")
+        update_values()
+        label, reply = choose_reply()
 
-        if "HELLO" in text.upper():
-            update_values()
-            label, reply = choose_reply()
-            sock.sendto(reply.encode(), (addr[0], RECEIVER_PORT))
-            print(f"Sent {label} reply:\n{reply}")
-        else:
-            print("Ignored")
+        send_sock.sendto(reply.encode(), (RECEIVER_IP, RECEIVER_PORT))
+        print(f"📤 Sent {label}:\n{reply}")
+
+        start = time.time()
+        while time.time() - start < 5:
+            try:
+                data, addr = recv_sock.recvfrom(1024)
+                cmd = data.decode(errors="replace").strip()
+                print(f"📥 Received command from {addr}: {cmd}")
+            except BlockingIOError:
+                pass
+
+            time.sleep(0.1)
 
 
 if __name__ == "__main__":
