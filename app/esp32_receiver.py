@@ -11,7 +11,9 @@ MQTT_TOPIC = "maquette/mesures"
 MQTT_HOST = "localhost"
 MQTT_PORT = 1883
 
-ESP32_IP = "127.0.0.1"
+# ESP32_IP = "127.0.0.1"
+ESP32_IP = "172.20.10.7"
+
 SEND_PORT = 5005
 RECEIVE_PORT = 5006
 
