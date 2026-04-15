@@ -104,30 +104,22 @@ def main():
 
             parsed = parse_message(text)
 
-            if parsed is None:
-                parsed = {
-                    "timestamp": datetime.now().isoformat(),
-                    "raw_message": text,
-                    "is_complete": False,
-                    "missing_fields": ["temp_in", "temp_out", "hum_in", "hum_out", "mosfet_percent"],
-                    "message_type": "raw_only"
-                }
-                print("RAW ONLY:", parsed)
-            else:
-                parsed["message_type"] = "parsed"
+            if parsed:
                 if parsed["is_complete"]:
                     print("PARSED COMPLETE:", parsed)
                 else:
                     print("PARSED PARTIAL:", parsed)
 
-            publish.single(
-                MQTT_TOPIC,
-                json.dumps(parsed),
-                hostname=MQTT_HOST,
-                port=MQTT_PORT,
-            )
+                publish.single(
+                    MQTT_TOPIC,
+                    json.dumps(parsed),
+                    hostname=MQTT_HOST,
+                    port=MQTT_PORT,
+                )
 
-            print("Published to MQTT:", parsed)
+                print("Published to MQTT:", parsed)
+            else:
+                print("Could not parse any useful data")
 
         except socket.timeout:
             print("No reply")
