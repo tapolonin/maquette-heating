@@ -8,7 +8,8 @@ TOPIC_CMD = "maquette/commandes"
 
 
 # ESP32_IP = "127.0.0.1" #fake esp
-ESP32_IP = "172.20.10.7" #esp
+# ESP32_IP = "172.20.10.7" #esp (mirass wifi)
+ESP32_IP = "192.168.4.3" #esp (maquette wifi)
 ESP32_PORT = 5005
 
 udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
