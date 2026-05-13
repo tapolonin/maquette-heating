@@ -4,11 +4,6 @@ __pycache__/
 
 # Virtual environment
 .venv/
-venv/
 
 # Database
 data/*.db
-
-# OS files
-.DS_Store
-Thumbs.db
