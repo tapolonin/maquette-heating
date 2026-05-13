@@ -1,11 +1,11 @@
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
-from db import db_one, db_all, db_exec
+from app.database import db_one, db_all, db_exec
 
 from flask import Flask, jsonify, request, Response, render_template
 
-from mqtt_client import publish_command
+from app.mqtt_commands import publish_command
 
 app = Flask(__name__)
 
